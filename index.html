@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0" />
+  <title>ECOS AGI Manager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            background: '#1A1C1F',
+            cardGlass: 'rgba(255, 255, 255, 0.08)',
+          },
+          boxShadow: {
+            glass: '0 8px 32px rgba(0, 0, 0, 0.2)',
+          },
+          backdropBlur: {
+            md: '16px',
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    html, body {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    .glass {
+      background: rgba(255, 255, 255, 0.05);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(18px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .apple-card {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1.5px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(20px) saturate(180%);
+      transition: all 0.3s ease;
+    }
+
+    .apple-card:hover {
+      border-color: rgba(255, 255, 255, 0.18);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .apple-input {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1.5px solid rgba(255, 255, 255, 0.12);
+      color: white;
+      padding: 0.85rem 1.1rem;
+      border-radius: 16px;
+      font-size: 1rem;
+      backdrop-filter: blur(14px);
+      transition: border 0.3s, background 0.3s;
+    }
+
+    .apple-input:focus {
+      border: 1.5px solid #3b82f6;
+      outline: none;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .apple-btn {
+      background: rgba(255, 255, 255, 0.07);
+      color: #fff;
+      border-radius: 14px;
+      font-weight: 600;
+      padding: 0.6rem 1.1rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      transition: all 0.2s ease-in-out;
+      backdrop-filter: blur(10px);
+    }
+
+    .apple-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+
+    .apple-btn:active {
+      background: rgba(255, 255, 255, 0.2);
+      transform: scale(0.98);
+    }
+
+    .collapsed {
+      max-height: 4.5rem;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .collapsed::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 1.5rem;
+      background: linear-gradient(to bottom, rgba(17,24,39,0) 0%, rgba(17,24,39,1) 100%);
+    }
+
+    .fade-in {
+      animation: fadeIn 0.7s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px) scale(0.98); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    #toast.show {
+      opacity: 1 !important;
+      transform: translateY(0) scale(1.05);
+    }
+
+    @media (max-width: 640px) {
+      .apple-card { border-radius: 16px; }
+      .apple-btn { border-radius: 12px; font-size: 1rem; }
+      .apple-input { border-radius: 12px; font-size: 1rem; }
+    }
+
+    /* Smooth scrolling */
+    ::-webkit-scrollbar {
+      width: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-gradient-to-br from-[#181a1e] via-[#23272f] to-[#23272f] text-gray-100 font-sans">
+  <!-- Header -->
+  <header class="w-full py-4 px-6 glass shadow-lg flex items-center gap-4 rounded-b-2xl mb-2 sticky top-0 z-30">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-sky-200 drop-shadow">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2" />
+      <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5" fill="none"/>
+    </svg>
+    <h1 class="text-2xl font-bold tracking-wide text-white drop-shadow flex-1">ECOS AGI Manager</h1>
+    <button id="logoutBtn" onclick="logout()" class="apple-btn px-4 py-2 text-sm !bg-rose-600 hover:!bg-rose-500 no-gradient" style="display:none;">Выйти</button>
+  </header>
+
+  <section class="max-w-2xl mx-auto w-full px-4 sm:px-0 mt-2 mb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div id="stats" class="text-sm text-gray-400 select-none"></div>
+    <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+      <input id="searchInput" type="text" placeholder="Поиск…" class="apple-input w-full sm:w-48" />
+      <select id="searchField" class="apple-input w-full sm:w-32">
+        <option value="prompt">Текст</option>
+        <option value="code">Код</option>
+        <option value="created_at">Дата создания</option>
+        <option value="updated_at">Дата изменения</option>
+      </select>
+      <select id="sortField" class="apple-input w-full sm:w-32">
+        <option value="created_at">Сортировать: Создан</option>
+        <option value="updated_at">Сортировать: Изменён</option>
+        <option value="prompt">Сортировать: Текст</option>
+        <option value="code">Сортировать: Код</option>
+      </select>
+      <select id="sortDir" class="apple-input w-full sm:w-24">
+        <option value="desc">↓</option>
+        <option value="asc">↑</option>
+      </select>
+      <label class="flex items-center gap-1 text-xs text-gray-400 select-none"><input type="checkbox" id="filterChanged" class="accent-sky-500"> Только изменённые</label>
+      <button id="exportBtn" class="apple-btn px-3 py-1">Экспорт</button>
+      <input type="file" id="importInput" accept=".json,.csv" class="hidden" />
+      <button id="importBtn" class="apple-btn px-3 py-1">Импорт</button>
+    </div>
+  </section>
+
+  <main id="promptList" class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 max-w-2xl mx-auto w-full"></main>
+
+  <form id="newPromptForm" class="w-full glass sticky bottom-0 p-4 flex gap-3 rounded-t-2xl shadow-2xl max-w-2xl mx-auto">
+    <textarea id="promptInput" placeholder="Введите ваш промпт…" rows="2" class="apple-input flex-1 resize-none min-h-[48px] max-h-60 overflow-y-auto" required></textarea>
+    <button id="saveBtn" type="submit" class="apple-btn px-7 py-3 disabled:opacity-50 disabled:pointer-events-none">
+      <span class="hidden sm:inline">Отправить</span>
+      <svg class="sm:hidden w-6 h-6 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+    </button>
+  </form>
+
+  <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 glass text-gray-100 px-5 py-3 rounded-xl shadow-2xl opacity-0 pointer-events-none transition-all duration-300 z-50 text-base font-medium"></div>
+
+  <div id="loginModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition">
+    <form id="loginForm" class="glass rounded-2xl p-6 shadow-2xl w-full max-w-xs flex flex-col gap-4 animate-fadeIn">
+      <h2 class="text-lg font-semibold text-gray-100 mb-2 text-center">Вход в админку</h2>
+      <input id="loginInput" class="apple-input w-full" placeholder="Логин" autocomplete="username" required />
+      <input id="passwordInput" class="apple-input w-full" type="password" placeholder="Пароль" autocomplete="current-password" required />
+      <button id="loginBtn" type="submit" class="apple-btn px-4 py-2 !bg-sky-600 text-white font-semibold hover:!bg-sky-500 no-gradient">Войти</button>
+      <div id="loginError" class="text-center text-rose-400 text-sm hidden">Ошибка входа</div>
+    </form>
+  </div>
+
+  <script>
+    const listEl   = document.getElementById('promptList');
+    const formEl   = document.getElementById('newPromptForm');
+    const inputEl  = document.getElementById('promptInput');
+    const toastEl  = document.getElementById('toast');
+    const saveBtn  = document.getElementById('saveBtn');
+    const searchEl = document.getElementById('searchInput');
+    const statsEl  = document.getElementById('stats');
+
+    let allPrompts = [];
+    let lastDate = '';
+
+    const ENDPOINT_READ  = 'https://n8n-p.blc.am/webhook/promptake';
+    const ENDPOINT_WRITE = 'https://n8n-p.blc.am/webhook/promptwrite';
+    const ENDPOINT_DELETE = 'https://n8n-p.blc.am/webhook/promptdelete';
+    const ENDPOINT_EDIT   = 'https://n8n-p.blc.am/webhook/promptedit';
+
+    // Функция для получения заголовков с JWT токеном
+    function getAuthHeaders() {
+      const token = localStorage.getItem('authToken');
+      return {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
+    }
+
+    // Функция для обработки ошибок аутентификации
+    function handleAuthError(response) {
+      if (response.status === 401) {
+        localStorage.removeItem('authToken');
+        location.reload();
+        return true;
+      }
+      return false;
+    }
+
+    inputEl.addEventListener('input', function () {
+      this.style.height = 'auto';
+      this.style.height = this.scrollHeight + 'px';
+    });
+
+    function showToast(msg, ok = true) {
+      toastEl.textContent = msg;
+      toastEl.style.backgroundColor = ok ? '#059669' : '#DC2626';
+      toastEl.classList.add('show');
+      setTimeout(() => {
+        toastEl.classList.remove('show');
+      }, 2500);
+    }
+
+    function prettyDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (isNaN(d)) return iso;
+      return d.toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    function cardTemplate({ id, prompt, created_at, updated_at }, idx) {
+      let dateLabel = '';
+      if (updated_at) {
+        dateLabel = 'Создан: ' + prettyDate(created_at) + '<br>Изменён: ' + prettyDate(updated_at);
+      } else if (created_at) {
+        dateLabel = 'Создан: ' + prettyDate(created_at);
+      }
+      return `
+        <div class="apple-card p-5 shadow-xl flex flex-col gap-3 fade-in group relative active:border-sky-500" data-idx="${idx}" data-id="${id}">
+          <div class="flex justify-between items-center text-xs text-gray-400 select-none">
+            <span>${dateLabel}</span>
+            <div class="flex gap-2">
+              <button class="apple-btn copyBtn px-3 py-1 text-sky-300 hover:text-sky-200" data-prompt="${encodeURIComponent(prompt)}">Копировать</button>
+              <button class="apple-btn editBtn px-3 py-1 text-amber-300 hover:text-amber-200" title="Редактировать">✏️</button>
+              <button class="apple-btn deleteBtn px-3 py-1 text-rose-300 hover:text-rose-200" title="Удалить">🗑️</button>
+            </div>
+          </div>
+          <pre class="promptText collapsed whitespace-pre-wrap break-words text-gray-100 text-base leading-relaxed font-mono transition-all duration-300 bg-transparent rounded-lg px-3 py-2 cursor-pointer select-text">${prompt}</pre>
+          <button class="apple-btn toggleBtn self-end text-xs text-sky-300 hover:text-sky-200 px-3 py-1">Показать больше</button>
+        </div>`;
+    }
+
+    async function loadPrompts() {
+      listEl.innerHTML = '<p class="text-center text-gray-400">Loading…</p>';
+      try {
+        const res  = await fetch(ENDPOINT_READ, { 
+          mode: 'cors',
+          headers: getAuthHeaders()
+        });
+        if (handleAuthError(res)) return;
+        if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+        let data = await res.json();
+        if (!Array.isArray(data) && Array.isArray(data.data)) data = data.data;
+        allPrompts = (data || []).map((rec) => ({
+          id: rec.id,
+          prompt: rec.prompt || rec.PROMPT || rec.text || rec.body || '',
+          created_at: rec.created_at || rec.date || rec.Date || rec.ts || '',
+          updated_at: rec.updated_at || '',
+        }));
+        lastDate = allPrompts.length ? allPrompts.reduce((a, b) => ((a.updated_at || a.created_at) > (b.updated_at || b.created_at) ? a : b)).updated_at || allPrompts.reduce((a, b) => (a.created_at > b.created_at ? a : b)).created_at : '';
+        renderPrompts();
+        updateStats();
+      } catch (err) {
+        console.error(err);
+        listEl.innerHTML = '<p class="text-center text-rose-500">Ошибка загрузки промптов.</p>';
+        allPrompts = [];
+        updateStats();
+      }
+    }
+
+    function renderPrompts() {
+      const q = (searchEl.value || '').toLowerCase();
+      const field = document.getElementById('searchField').value;
+      const sortField = document.getElementById('sortField').value;
+      const sortDir = document.getElementById('sortDir').value;
+      const filterChanged = document.getElementById('filterChanged').checked;
+      let filtered = allPrompts;
+      if (q) {
+        filtered = filtered.filter(p => (p[field] || '').toLowerCase().includes(q));
+      }
+      if (filterChanged) {
+        filtered = filtered.filter(p => p.updated_at && p.updated_at !== '' && p.updated_at !== null);
+      }
+      filtered = filtered.slice().sort((a, b) => {
+        let av = a[sortField] || '';
+        let bv = b[sortField] || '';
+        if (sortField === 'created_at' || sortField === 'updated_at') {
+          av = av || '';
+          bv = bv || '';
+          return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+        }
+        return sortDir === 'asc' ? (av > bv ? 1 : av < bv ? -1 : 0) : (av < bv ? 1 : av > bv ? -1 : 0);
+      });
+      listEl.innerHTML = '';
+      if (!filtered.length) {
+        listEl.innerHTML = '<p class="text-center text-gray-500">Промпты не найдены.</p>';
+        return;
+      }
+      filtered.forEach((rec, idx) => {
+        listEl.insertAdjacentHTML('beforeend', cardTemplate(rec, idx));
+      });
+    }
+
+    function updateStats() {
+      statsEl.textContent = `Всего промптов: ${allPrompts.length}${lastDate ? ` • Последний: ${prettyDate(lastDate)}` : ''}`;
+    }
+
+    const modalHtml = `
+      <div id="editModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition">
+        <div class="glass rounded-2xl p-6 shadow-2xl w-full max-w-md flex flex-col gap-4 animate-fadeIn">
+          <h2 class="text-lg font-semibold text-gray-100 mb-2">Редактировать промпт</h2>
+          <textarea id="editPromptInput" class="apple-input w-full" rows="4"></textarea>
+          <div class="flex gap-3 justify-end">
+            <button id="cancelEditBtn" class="apple-btn px-4 py-2 bg-gray-700 text-gray-300 hover:bg-gray-600">Отмена</button>
+            <button id="saveEditBtn" class="apple-btn px-4 py-2 !bg-emerald-600 text-white font-semibold hover:!bg-emerald-500 no-gradient">Сохранить</button>
+          </div>
+        </div>
+      </div>
+    `;
+    function showEditModal(idx) {
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+      const modal = document.getElementById('editModal');
+      const input = document.getElementById('editPromptInput');
+      input.value = allPrompts[idx].prompt;
+      input.focus();
+      document.getElementById('cancelEditBtn').onclick = () => modal.remove();
+      document.getElementById('saveEditBtn').onclick = async () => {
+        const val = input.value.trim();
+        if (val) {
+          const id = allPrompts[idx].id;
+          try {
+            const editRes = await fetch(ENDPOINT_EDIT, {
+              method: 'POST',
+              headers: getAuthHeaders(),
+              body: JSON.stringify({ id, prompt: val })
+            });
+            if (handleAuthError(editRes)) return;
+            if (!editRes.ok) throw new Error(editRes.status + ' ' + editRes.statusText);
+            showToast('Промпт обновлён');
+            modal.remove();
+            loadPrompts();
+          } catch (err) {
+            showToast('Ошибка при обновлении', false);
+          }
+        }
+      };
+    }
+
+    listEl.addEventListener('click', (e) => {
+      const card = e.target.closest('[data-idx]');
+      const idx = card ? +card.dataset.idx : -1;
+
+      if (e.target.classList.contains('copyBtn')) {
+        const txt = decodeURIComponent(e.target.dataset.prompt);
+        navigator.clipboard.writeText(txt).then(() => showToast('Скопировано!'));
+        return;
+      }
+      if (e.target.classList.contains('toggleBtn')) {
+        const pre   = e.target.previousElementSibling; // <pre>
+        const btn   = e.target;
+        pre.classList.toggle('collapsed');
+        btn.textContent = pre.classList.contains('collapsed') ? 'Показать больше' : 'Показать меньше';
+        return;
+      }
+      if (e.target.classList.contains('editBtn')) {
+        showEditModal(idx);
+        return;
+      }
+      // Delete logic
+      if (e.target.classList.contains('deleteBtn')) {
+        const id = allPrompts[idx].id;
+        card.classList.add('opacity-0', 'scale-95', 'duration-300');
+        setTimeout(async () => {
+          try {
+            const deleteRes = await fetch(ENDPOINT_DELETE, {
+              method: 'DELETE',
+              headers: getAuthHeaders(),
+              body: JSON.stringify({ id: Number(id) })
+            });
+            if (handleAuthError(deleteRes)) return;
+            if (!deleteRes.ok) throw new Error(deleteRes.status + ' ' + deleteRes.statusText);
+            showToast('Промпт удалён');
+            loadPrompts();
+          } catch (err) {
+            showToast('Ошибка при удалении', false);
+          }
+        }, 250);
+        return;
+      }
+    });
+
+    formEl.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const prompt = inputEl.value.trim();
+      if (!prompt) return;
+      saveBtn.disabled = true;
+      try {
+        const writeRes = await fetch(ENDPOINT_WRITE, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ prompt })
+        });
+        if (handleAuthError(writeRes)) return;
+        if (!writeRes.ok) throw new Error(writeRes.status + ' ' + writeRes.statusText);
+        showToast('Сохранено');
+        inputEl.value = '';
+        inputEl.style.height = 'auto';
+        loadPrompts();
+      } catch (err) {
+        console.error(err);
+        showToast('Error while saving', false);
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+
+    searchEl.addEventListener('input', renderPrompts);
+
+    document.getElementById('searchField').addEventListener('change', renderPrompts);
+    document.getElementById('sortField').addEventListener('change', renderPrompts);
+    document.getElementById('sortDir').addEventListener('change', renderPrompts);
+    document.getElementById('filterChanged').addEventListener('change', renderPrompts);
+
+    document.getElementById('exportBtn').addEventListener('click', () => {
+      const dataStr = JSON.stringify(allPrompts, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'prompts_export.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
+    document.getElementById('importBtn').addEventListener('click', () => {
+      document.getElementById('importInput').click();
+    });
+    document.getElementById('importInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const imported = JSON.parse(ev.target.result);
+          if (Array.isArray(imported)) {
+
+            showToast('Импортировано: ' + imported.length);
+            // Например, просто добавить во временный список:
+            // allPrompts = allPrompts.concat(imported);
+            // renderPrompts();
+          } else {
+            showToast('Файл не содержит массив промптов', false);
+          }
+        } catch {
+          showToast('Ошибка при импорте', false);
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    const loginModal = document.getElementById('loginModal');
+    const loginForm = document.getElementById('loginForm');
+    const loginInput = document.getElementById('loginInput');
+    const passwordInput = document.getElementById('passwordInput');
+    const loginBtn = document.getElementById('loginBtn');
+    const loginError = document.getElementById('loginError');
+
+    function showLogin() {
+      loginModal.style.display = 'flex';
+      document.body.classList.add('overflow-hidden');
+    }
+    function hideLogin() {
+      loginModal.style.display = 'none';
+      document.body.classList.remove('overflow-hidden');
+    }
+    function isAuthed() {
+      return !!localStorage.getItem('authToken');
+    }
+    function logout() {
+      localStorage.removeItem('authToken');
+      location.reload();
+    }
+
+    if (!isAuthed()) {
+      showLogin();
+      document.getElementById('promptList').style.display = 'none';
+      document.getElementById('newPromptForm').style.display = 'none';
+      document.querySelector('section').style.display = 'none';
+      document.getElementById('logoutBtn').style.display = 'none';
+    } else {
+      hideLogin();
+      document.getElementById('promptList').style.display = '';
+      document.getElementById('newPromptForm').style.display = '';
+      document.querySelector('section').style.display = '';
+      document.getElementById('logoutBtn').style.display = '';
+    }
+
+    loginForm.onsubmit = async (e) => {
+      e.preventDefault();
+      loginBtn.disabled = true;
+      loginError.classList.add('hidden');
+      try {
+        const res = await fetch('https://n8n-p.blc.am/webhook/authorlogin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ login: loginInput.value.trim(), password: passwordInput.value })
+        });
+        const data = await res.json();
+        if (res.ok && data && data.token) {
+          localStorage.setItem('authToken', data.token);
+          hideLogin();
+          document.getElementById('promptList').style.display = '';
+          document.getElementById('newPromptForm').style.display = '';
+          document.querySelector('section').style.display = '';
+          document.getElementById('logoutBtn').style.display = '';
+          loadPrompts();
+        } else {
+          loginError.textContent = data && data.error ? data.error : 'Ошибка входа';
+          loginError.classList.remove('hidden');
+        }
+      } catch {
+        loginError.textContent = 'Ошибка соединения';
+        loginError.classList.remove('hidden');
+      } finally {
+        loginBtn.disabled = false;
+      }
+    };
+
+    window.logout = logout;
+
+    loadPrompts();
+  </script>
+</body>
+</html>
