@@ -228,7 +228,12 @@
     function handleAuthError(response) {
       if (response.status === 401) {
         localStorage.removeItem('authToken');
-        location.reload();
+        showLogin();
+        document.getElementById('promptList').style.display = 'none';
+        document.getElementById('newPromptForm').style.display = 'none';
+        document.querySelector('section').style.display = 'none';
+        document.getElementById('logoutBtn').style.display = 'none';
+        showToast('Сессия истекла, войдите заново', false);
         return true;
       }
       return false;
